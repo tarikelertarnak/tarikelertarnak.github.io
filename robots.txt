@@ -1,9 +1,2 @@
 User-Agent: *
-Allow: /
-Disallow: /admin
-Disallow: /login
-Disallow: /api/
-Disallow: /puck
-Disallow: /chat
-
-Sitemap: https://tarikelertarnak.github.io/sitemap.xml
+Disallow: /
