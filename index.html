@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!--
+    BU SITE KALICI OLARAK BOS BIRAKILDI (2026-10-05).
+
+    Onceki icerik: Tarık Eler'in eski Next.js portfolio surumu.
+    Guncel site:    https://tarikelertarnak.pages.dev
+
+    Neden bos: kullanici eski surumu "sil" istedi. Google/Yandex/Bing'de
+    indekslenmis URL'lerin "bu site tasindi" diyerek guncel adrese yonlendirilmesi
+    icin `noindex` + `canonical` birakildi. Boylece arama motorlari eski
+    sayfalari aramalarinda gostermez, gecerli adresi ogrenir.
+  -->
+  <title>Bu site taşındı — Tarık Eler (Tarnak)</title>
+  <meta name="robots" content="noindex, follow" />
+  <link rel="canonical" href="https://tarikelertarnak.pages.dev/" />
+  <meta http-equiv="refresh" content="0; url=https://tarikelertarnak.pages.dev/" />
+  <style>
+    html { color-scheme: light dark; }
+    body {
+      margin: 0;
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #fafafa;
+      color: #18181b;
+      text-align: center;
+      padding: 2rem;
+    }
+    .card { max-width: 34rem; }
+    h1 { font-size: 1.5rem; margin: 0 0 0.75rem; letter-spacing: -0.01em; }
+    p { margin: 0 0 1.25rem; color: #52525b; line-height: 1.6; }
+    a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.1rem;
+      border-radius: 6px;
+      background: #3b82f6;
+      color: #000;
+      font-weight: 500;
+      text-decoration: none;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0a0a0c; color: #ededed; }
+      p { color: #a1a1aa; }
+      a { background: #2563eb; color: #fff; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Bu site taşındı</h1>
+    <p>
+      Bu adres artık güncellenmiyor. Güncel portfolyo ve iletişim bilgileri için
+      yeni adresi kullanın.
+    </p>
+    <a href="https://tarikelertarnak.pages.dev/">
+      https://tarikelertarnak.pages.dev
+    </a>
+  </div>
+</body>
+</html>

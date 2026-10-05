@@ -1,0 +1,6 @@
+# Bos birakildi (2026-10-05). Guncel site: https://tarikelertarnak.pages.dev
+# `Disallow: /` ile taranma tamamen engellendi: indekslenmis eski sayfalarin
+# arama sonuclarinda gorunmemesi ve guncel adresin ogrenilmesi icin.
+# Meta `noindex, follow` + canonical yonlendirmesi `index.html` icinde.
+User-Agent: *
+Disallow: /
