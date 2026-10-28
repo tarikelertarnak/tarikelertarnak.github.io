@@ -9,7 +9,7 @@
 
 $ErrorActionPreference = 'Stop'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
-$Version  = '2.5.0'
+$Version  = '3.0.0'
 $Author   = 'TARIK ELER'
 $RepoUrl  = 'https://github.com/tarikelertarnak/ActivaterWindows'
 $SiteUrl  = 'https://tarikelertarnak.pages.dev/'
@@ -43,6 +43,17 @@ $script:WinInfo = $null
 # Live bar for percentage-less steps: a finished one passes at once, an unfinished one is cut off
 $OfficeLangs = 'af-za am-et ar-sa as-in az-latn-az be-by bg-bg bn-bd bn-in bs-latn-ba ca-es cs-cz cy-gb da-dk de-de el-gr en-gb en-us es-es es-mx et-ee eu-es fa-ir fi-fi fil-ph fr-ca fr-fr gl-es gu-in he-il hi-in hr-hr hu-hu hy-am id-id is-is it-it ja-jp ka-ge kk-kz km-kh kn-in ko-kr ky-kg lo-la lt-lt lv-lv mk-mk ml-in mn-mn mr-in ms-my mt-mt nb-no ne-np nl-nl nn-no or-in pa-in pl-pl ps-af pt-br pt-pt ro-ro ru-ru si-lk sk-sk sl-si sq-al sr-latn-rs sv-se sw-ke ta-in te-in th-th tr-tr uk-ua ur-pk uz-latn-uz vi-vn zh-cn zh-tw zu-za' -split ' '
 
+# Auto UAC elevation: admin degilse kendini yukselt (SelfTest/Probe/Refresh haric, sadece dogrudan calistirilmis scriptte)
+if ($MyInvocation.MyCommand.CommandType -eq 'Script' -and
+    -not $args.Contains('-SelfTest') -and -not $args.Contains('-Probe') -and -not $args.Contains('-Refresh')) {
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $isAdmin) {
+        Write-Host 'Yonetici gerekiyor, yukseltiliyor...' -ForegroundColor Yellow
+        Start-Process pwsh -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $($args -join ' ')" -Verb RunAs
+        exit
+    }
+}
+
 # A "/"-argument is forwarded straight to the AIO engine (e.g. ActivaterWindows.ps1 /HWID)
 $OfficeApps = @(
     @{ n = 'Word';               id = 'Word' },
@@ -61,16 +72,18 @@ $OfficeAppsRecommended = @('Word', 'Excel', 'PowerPoint')
 $Strings = @{
     tr = @{
         langline = 'Dil / Language :  [A] Otomatik (su an: {0})   [T] Turkce   [E] English'
-        m1 = '  [1]  Windows etkinlestir        kalici dijital lisans'
-        m2 = '  [2]  Office etkinlestir         kalici'
-        m3 = '  [3]  Windows + ESU + Office     tek gecis'
-        m4 = '  [4]  Windows 10 ESU             kalici'
-        m5 = '  [5]  Etkinlestirme durumu       kontrol et'
-        m6 = '  [6]  Office LTSC 2024 kur       dil + bilesen secimi'
-        m7 = '  [7]  HEPSINI ETKINLESTIR        kurulum yok, hepsini etkinlestir'
-        m8 = '  [8]  HEPSINI YAP                kur + etkinlestir + tam menu'
-        m9 = '  [9]  Hakkinda'
-        mx = '  [0]  Cikis'
+        m1 = '  [1]  Windows etkinlestir                kalici dijital lisans'
+        m2 = '  [2]  Windows surum degistir + etkinles. surum secimi'
+        m3 = '  [3]  Windows 10 ESU                    kalici'
+        m4 = '  [4]  Office etkinlestir                kalici'
+        m5 = '  [5]  Office LTSC 2024 kur              dil + bilesen secimi'
+        m6 = '  [6]  Office LTSC 2024 kur + etkinles  onceki surumu temizler, kurar, etkinlestirir'
+        m7 = '  [7]  Windows + ESU + Office            tek gecis'
+        m8 = '  [8]  HEPSINI ETKINLESTIR               kurulum yok, hepsini etkinlestir'
+        m9 = '  [9]  HEPSINI YAP                       kur + etkinlestir + tam menü'
+        mA = '  [A]  Etkinlestirme durumu              kontrol et'
+        mH = '  [H]  Hakkinda'
+        mx = '  [w]  Cikis'
         ml = '  [L]  Arayuz dilini degistir'
         choice = 'Secim'
         back = 'Menuye donmek icin Enter'
@@ -158,6 +171,12 @@ $Strings = @{
         off_ready = 'Kurulum araci hazir. Simdi secimlerini yap:'
         off_summary = 'Dil: {0}   Kurulacak: {1}'
         off_go = 'Kurulum baslatilsin mi? (E/h)'
+        office_installed = 'Microsoft Office LTSC Professional Plus 2024 zaten kurulu. Temizlensin mi? (E/h, bos = evet)'
+        office_installed_other = 'Baska bir Office surumu kurulu ({0}). Temizlensin mi? (E/h, bos = evet)'
+        office_removing = 'Office kaldiriliyor...'
+        office_removed = 'Office kaldirildi.'
+        office_remove_fail = 'Office kaldirilanamadi (cikis kodu: {0}).'
+        office_install_running = 'Office kurulum islemi zaten calisiyor. Lutfen bekleyin ve tekrar deneyin (Hata 0-2035).'
         m0back = '  [0]  Geri'
         odt_hash_fail = 'ODT butunluk kontrolu basarisiz, bu kaynak atlaniyor ({0}).'
         win_eds_none = 'Surum listesi okunamadi (WMI). Motorun kendi penceresi yine de listeler.'
@@ -173,16 +192,18 @@ $Strings = @{
     }
     en = @{
         langline = 'Dil / Language :  [A] Automatic (now: {0})   [T] Turkce   [E] English'
-        m1 = '  [1]  Activate Windows            permanent digital license'
-        m2 = '  [2]  Activate Office             permanent'
-        m3 = '  [3]  Windows + ESU + Office      single pass'
-        m4 = '  [4]  Windows 10 ESU              permanent'
-        m5 = '  [5]  Activation status           check'
-        m6 = '  [6]  Install Office LTSC 2024    language + component picker'
-        m7 = '  [7]  ACTIVATE EVERYTHING         no install, activate all'
-        m8 = '  [8]  DO EVERYTHING               install + activate + full menu'
-        m9 = '  [9]  About'
-        mx = '  [0]  Exit'
+        m1 = '  [1]  Activate Windows                  permanent digital license'
+        m2 = '  [2]  Change edition + activate        pick edition & activate'
+        m3 = '  [3]  Windows 10 ESU                  permanent'
+        m4 = '  [4]  Activate Office                 permanent'
+        m5 = '  [5]  Install Office LTSC 2024        language + component picker'
+        m6 = '  [6]  Office LTSC 2024 install + act   clears existing, installs, activates'
+        m7 = '  [7]  Windows + ESU + Office          single pass'
+        m8 = '  [8]  ACTIVATE EVERYTHING             no install, activate all'
+        m9 = '  [9]  DO EVERYTHING                   install + activate + full menu'
+        mA = '  [A]  Activation status               check'
+        mH = '  [H]  About'
+        mx = '  [w]  Exit'
         ml = '  [L]  Change interface language'
         choice = 'Choice'
         back = 'Press Enter to return to menu'
@@ -270,6 +291,12 @@ $Strings = @{
         off_ready = 'Setup tool ready. Now make your choices:'
         off_summary = 'Language: {0}   Installing: {1}'
         off_go = 'Start the install? (Y/n)'
+        office_installed = 'Microsoft Office LTSC Professional Plus 2024 is already installed. Remove it? (Y/n, blank = yes)'
+        office_installed_other = 'Another Office version is installed ({0}). Remove it? (Y/n, blank = yes)'
+        office_removing = 'Removing Office...'
+        office_removed = 'Office removed.'
+        office_remove_fail = 'Office could not be removed (exit code: {0}).'
+        office_install_running = 'Office install is already running. Please wait and try again (Error 0-2035).'
         m0back = '  [0]  Back'
         odt_hash_fail = 'ODT integrity check failed, skipping this source ({0}).'
         win_eds_none = 'Could not read the edition list (WMI). The engine window will still list them.'
@@ -448,12 +475,11 @@ function Write-DlBar([long]$Done, [long]$Total, $Sw) {
 
 
 
-function Write-BusyBar([int]$Tick, [int]$Width = 30, $Sw) {
-    $pos = $Tick % ($Width * 2)
-    if ($pos -ge $Width) { $pos = ($Width * 2) - $pos - 1 }
-    $track = ('-' * $pos) + '#' + ('-' * ($Width - $pos - 1))
+function Write-BusyBar([int]$Tick, $Sw) {
+    $spinner = @('|', '/', '-', '\')
+    $spin = $spinner[$Tick % 4]
     $el = if ($Sw) { [int]$Sw.Elapsed.TotalSeconds } else { 0 }
-    Write-Host ("`r  [{0}] {1,4}s" -f $track, $el) -NoNewline
+    Write-Host ("`r  {0}  {1,4}s" -f $spin, $el) -NoNewline
 }
 
 
@@ -469,7 +495,7 @@ function Wait-WithBar([scriptblock]$IsDone, [int]$MaxSec = 1800) {
         Start-Sleep -Milliseconds 100
     }
     $sw.Stop()
-    Write-Host ("`r  [{0}] {1,4}s" -f ('#' * 30), [int]$sw.Elapsed.TotalSeconds)
+    Write-Host ("`r  {0}  {1,4}s" -f '*', [int]$sw.Elapsed.TotalSeconds)
     $fin
 }
 
@@ -814,6 +840,209 @@ function Test-OfficeC2R {
     $false
 }
 
+# Sadece LTSC Professional Plus 2024 kurulu mu diye bakar (ProPlus2024Volume ProgId)
+function Test-OfficeLTSC2024 {
+    foreach ($root in @(
+        'HKLM:\SOFTWARE\Microsoft\OfficeClickToRun\Configuration',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\OfficeClickToRun\Configuration'
+    )) {
+        $cfg = Get-ItemProperty -Path $root -ErrorAction SilentlyContinue
+        if ($cfg -and $cfg.ProductReleaseIds -and
+            ($cfg.ProductReleaseIds -match 'ProPlus2024Volume')) { return $true }
+    }
+    # Fallback: Office16 klasoru var mi? (Registry yoksa bile)
+    $office16 = @(
+        "$env:ProgramFiles\Microsoft Office\root\Office16",
+        "${env:ProgramFiles(x86)}\Microsoft Office\root\Office16"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($office16) { return $true }
+    $false
+}
+
+# Herhangi bir C2R Office kurulu mu — LTSC2024 haric (M365, 2021, 2019 vs.)
+function Test-OtherOfficeC2R {
+    foreach ($root in @(
+        'HKLM:\SOFTWARE\Microsoft\OfficeClickToRun\Configuration',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\OfficeClickToRun\Configuration'
+    )) {
+        $cfg = Get-ItemProperty -Path $root -ErrorAction SilentlyContinue
+        if ($cfg -and $cfg.ProductReleaseIds) { return $true }
+    }
+    # Fallback: Office16/Office15 klasoru var mi?
+    $officeRoot = @(
+        "$env:ProgramFiles\Microsoft Office\root\Office16",
+        "${env:ProgramFiles(x86)}\Microsoft Office\root\Office16",
+        "$env:ProgramFiles\Microsoft Office\root\Office15",
+        "${env:ProgramFiles(x86)}\Microsoft Office\root\Office15"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($officeRoot) { return $true }
+    $false
+}
+
+# Office kurulum/islem icinde mi? setup.exe, OfficeC2RClient.exe, msiexec gibi
+# prosesler calisiyorsa ODT kurulumu 0-2035 (already installing) hatasi verir.
+function Test-OfficeInstallRunning {
+    $procs = @('setup', 'OfficeC2RClient', 'msiexec', 'clicktorun',
+               'officeclicktorun', 'spvirtualization')
+    foreach ($p in $procs) {
+        if (Get-Process -Name $p -ErrorAction SilentlyContinue) { return $true }
+    }
+    try {
+        $svc = Get-Service -Name 'ClickToRunSvc' -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq 'Running') { return $true }
+    } catch {}
+    $false
+}
+
+# Office Click-to-Run kurulumundan sonra .docx/.xlsx/.pptx gibi dosyalarin cift tikla
+# acilmamasi, sadece yonetici izniyle acilmasi, word'den acmak zorunda kalma sorununu giderir.
+# ProgID'leri yeniden baglar, UserChoice kayitlarini temizler, Word/Excel/PowerPoint
+# icin varsayilan uygulamayi kaydeder.
+function Invoke-FixOfficeAssociations {
+    Clear-Host
+    Write-Banner
+    Write-Host ''
+    Write-Host '  Office tamami onariliyor...' -ForegroundColor Cyan
+    Write-Host ''
+
+    if (-not (Test-OfficeC2R)) {
+        Write-Host '  Office kurulu degil. Once Office kurun.' -ForegroundColor Red
+        return
+    }
+
+    # --- 1) Eski hesap / OneAuth kimlik kayitlarini temizle ---
+    # Hesap hatasi + Word'un yonetici gerektirmesi buradan geliyor:
+    # eski M365/Live hesabi LTSC'ye baglanmis kalmis, Office kimlik dogrulama
+    # yapmaya calisip elevated aciyor.
+    Write-Host '  Eski hesap kayitlari temizleniyor...' -ForegroundColor Cyan
+    $idRoot = 'HKCU:\Software\Microsoft\Office\16.0\Common\Identity'
+    if (Test-Path $idRoot) {
+        # Alt anahtarlari temizle (Profiles, OneAuthConfigCache)
+        foreach ($sub in Get-ChildItem $idRoot -ErrorAction SilentlyContinue) {
+            try { Remove-Item -Path $sub.PSPath -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        # ConnectedOneAuthAccountId degerini sifirla
+        try { Set-ItemProperty -Path $idRoot -Name 'ConnectedOneAuthAccountId' -Value '' -Force -ErrorAction SilentlyContinue } catch {}
+        Write-Host '  Identity kayitlari temizlendi.' -ForegroundColor Green
+    } else {
+        Write-Host '  Temizlenecek Identity kaydi yok.' -ForegroundColor DarkGray
+    }
+
+    # Ek hesap kalintisi: MSAL token cache
+    $msalKeys = @(
+        'HKCU:\Software\Microsoft\Office\16.0\Common\Identity\OneAuthConfigCache',
+        'HKCU:\Software\Microsoft\Office\16.0\Common\ServicesManagerCache',
+        'HKCU:\Software\Microsoft\Office\16.0\Common\Roaming\Identities'
+    )
+    foreach ($k in $msalKeys) {
+        if (Test-Path $k) {
+            try { Remove-Item -Path $k -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+        }
+    }
+
+    # --- 2) Office16 klasor ve exe izinlerini duzelt ---
+    # Word/Excel/PowerPoint yonetici olmadan acilmiyorsa izinler bozuktur.
+    $officeRoot = $null
+    foreach ($root in @(
+        "$env:ProgramFiles\Microsoft Office\root\Office16",
+        "${env:ProgramFiles(x86)}\Microsoft Office\root\Office16",
+        "$env:ProgramFiles\Microsoft Office\root\Office15",
+        "${env:ProgramFiles(x86)}\Microsoft Office\root\Office15"
+    )) { if (Test-Path $root) { $officeRoot = $root; break } }
+
+    if ($officeRoot) {
+        Write-Host ('  Dosya izinleri onariliyor: {0}' -f $officeRoot) -ForegroundColor Cyan
+        $usersRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            'Users', 'ReadAndExecute, Synchronize',
+            'ContainerInherit,ObjectInherit', 'None', 'Allow')
+        try {
+            $acl = Get-Acl $officeRoot
+            $acl.SetAccessRule($usersRule)
+            Set-Acl -Path $officeRoot -AclObject $acl
+            Write-Host '  Klasor izinleri guncellendi.' -ForegroundColor Green
+        } catch { Write-Host ('  Klasor izin hatasi: {0}' -f $_.Exception.Message) -ForegroundColor Yellow }
+
+        foreach ($exe in @('winword.exe','excel.exe','powerpnt.exe')) {
+            $exePath = Join-Path $officeRoot $exe
+            if (-not (Test-Path $exePath)) { continue }
+            try {
+                $acl = Get-Acl $exePath
+                $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    'Users', 'ReadAndExecute, Synchronize', 'None', 'None', 'Allow')
+                $acl.SetAccessRule($rule)
+                Set-Acl -Path $exePath -AclObject $acl
+            } catch {}
+        }
+    }
+
+    # --- 3) HKCR ProgID + App Paths yeniden yaz ---
+    if ($officeRoot) {
+        $exeMap = @{
+            'winword.exe'  = @('Word.Document.12','Word.Document.8','Word.Template.12','Word.Template.8','Word.RTF.8')
+            'excel.exe'    = @('Excel.Sheet.12','Excel.Sheet.8','Excel.SheetMacroEnabled.12','Excel.SheetBinaryMacroEnabled.12','Excel.Template.12')
+            'powerpnt.exe' = @('PowerPoint.Show.12','PowerPoint.Show.8','PowerPoint.ShowMacroEnabled.12','PowerPoint.Template.12')
+        }
+        foreach ($exe in $exeMap.Keys) {
+            $exePath = Join-Path $officeRoot $exe
+            if (-not (Test-Path $exePath)) { continue }
+            foreach ($progId in $exeMap[$exe]) {
+                $cmdKey = "HKCR:\$progId\shell\Open\command"
+                try {
+                    if (-not (Test-Path $cmdKey)) { New-Item -Path $cmdKey -Force | Out-Null }
+                    Set-ItemProperty -Path $cmdKey -Name '(Default)' -Value "`"$exePath`" `"%1`"" -Force
+                } catch {}
+            }
+            $apKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$exe"
+            try {
+                if (-not (Test-Path $apKey)) { New-Item -Path $apKey -Force | Out-Null }
+                Set-ItemProperty -Path $apKey -Name '(Default)' -Value $exePath -Force
+                Set-ItemProperty -Path $apKey -Name 'Path' -Value $officeRoot -Force
+            } catch {}
+        }
+    }
+
+    # --- 4) UserChoice + OpenWithProgids temizle ---
+    $extList = @('.doc','.docx','.dot','.dotx','.rtf','.xls','.xlsx','.xlsm','.xlsb','.xltx','.ppt','.pptx','.pptm','.potx')
+    foreach ($ext in $extList) {
+        foreach ($sub in @('UserChoice','OpenWithProgids')) {
+            $k = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$ext\$sub"
+            if (Test-Path $k) { try { Remove-Item -Path $k -Recurse -Force -ErrorAction SilentlyContinue } catch {} }
+        }
+    }
+
+    # --- 5) OfficeC2RClient /repair + ie4uinit + explorer ---
+    $c2rClient = $null
+    foreach ($p in @(
+        "$env:ProgramFiles\Common Files\microsoft shared\ClickToRun\OfficeC2RClient.exe",
+        "${env:ProgramFiles(x86)}\Common Files\microsoft shared\ClickToRun\OfficeC2RClient.exe"
+    )) { if (Test-Path $p) { $c2rClient = $p; break } }
+
+    if ($c2rClient) {
+        Write-Host '  Office iliskilendirmeleri yeniden yaziliyor...' -ForegroundColor Cyan
+        try {
+            $pr = Start-Process -FilePath $c2rClient -ArgumentList '/repair onshowinuisuppressed=true' -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+            if ($pr) { if (-not (Wait-WithBar { $pr.HasExited } 300)) { Write-Host (T 'step_timeout') -ForegroundColor DarkYellow } }
+        } catch {}
+    }
+
+    $ie4 = "$env:SystemRoot\System32\ie4uinit.exe"
+    if (Test-Path $ie4) {
+        try { Start-Process -FilePath $ie4 -ArgumentList '-show' -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue } catch {}
+    }
+
+    try { Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue } catch {}
+    Start-Sleep -Milliseconds 1500
+    try { Start-Process explorer.exe } catch {}
+
+    Write-Host ''
+    Write-Host '  Tamamlandi.' -ForegroundColor Green
+    Write-Host '  - Hesap hatasi giderildi (eski M365 hesabi kaldinildi)' -ForegroundColor DarkGray
+    Write-Host '  - Word/Excel/PowerPoint artik yonetici olmadan acilmali' -ForegroundColor DarkGray
+    Write-Host '  - .docx/.xlsx/.pptx cift tikla acilmali' -ForegroundColor DarkGray
+    Write-Host '  Sorun devam ederse oturumu kapat/ac veya bilgisayari yeniden baslat.' -ForegroundColor DarkYellow
+    Write-Host ''
+}
+
 function Default-OfficeLang {
     $c = ((Get-Culture).Name).ToLowerInvariant()
     if ($script:UiLang -eq 'tr') { 'tr-tr' }
@@ -950,14 +1179,42 @@ function Install-OfficeLTSC {
     Write-Host ('  ' + ('=' * 58)) -ForegroundColor DarkCyan
     Write-Host ('  ' + (T 'off_dl_first')) -ForegroundColor DarkGray
 
+    # Kurulu Office tespit et, adini goster, sor
+    $removeOffice = $false
+    if (Test-OfficeLTSC2024) {
+        # Tam olarak LTSC 2024 kurulu
+        if (-not (Confirm (T 'office_installed'))) {
+            Write-Host '  Islem iptal edildi.' -ForegroundColor DarkYellow
+            return
+        }
+        $removeOffice = $true
+    } elseif (Test-OtherOfficeC2R) {
+        # Baska bir C2R Office surumu kurulu (M365, 2021, 2019 vs.)
+        $detectedName = 'Bilinmeyen Office'
+        try {
+            foreach ($root in @(
+                'HKLM:\SOFTWARE\Microsoft\OfficeClickToRun\Configuration',
+                'HKLM:\SOFTWARE\WOW6432Node\Microsoft\OfficeClickToRun\Configuration'
+            )) {
+                $cfg = Get-ItemProperty -Path $root -ErrorAction SilentlyContinue
+                if ($cfg -and $cfg.ProductReleaseIds) {
+                    $detectedName = $cfg.ProductReleaseIds -replace ',.*'
+                    break
+                }
+            }
+        } catch {}
+        if (-not (Confirm ((T 'office_installed_other') -f $detectedName))) {
+            Write-Host '  Islem iptal edildi.' -ForegroundColor DarkYellow
+            return
+        }
+        $removeOffice = $true
+    }
+
     $work = Join-Path ([IO.Path]::GetTempPath()) "AW_ODT_$(Get-Random)"
-    $script:WorkDir = $work   # so a cancelled run (closed input / Ctrl+C) can still clean up
+    $script:WorkDir = $work
     New-Item -ItemType Directory -Path $work -Force | Out-Null
     $odt = Join-Path $work 'odt.exe'
 
-    # 1) Get the tool and unpack it BEFORE asking anything: the download is the slow part and the
-    #    questions are pointless if it cannot be obtained. On Esc the loop restarts but keeps the
-    #    already-verified tool, so a cancelled run never re-downloads.
     while ($true) {
         if (-not (Test-OdtFile $odt)) {
             if (-not (Get-OdtTool -OutFile $odt)) {
@@ -973,8 +1230,66 @@ function Install-OfficeLTSC {
         }
         if (-not (Test-Path $setup)) {
             Write-Host (T 'extract_fail') -ForegroundColor Red
-            Remove-Item -Path $odt -Force -ErrorAction SilentlyContinue   # likely a broken download: refetch once
+            Remove-Item -Path $odt -Force -ErrorAction SilentlyContinue
             continue
+        }
+
+        # Office varsa ODT setup.exe /configure Remove.xml ile kaldir
+        if ($removeOffice) {
+            Write-Host ''
+            Write-Host ('  ' + (T 'office_removing')) -ForegroundColor Cyan
+            $removeXml = Join-Path $work 'Remove.xml'
+            [IO.File]::WriteAllText($removeXml, '<Configuration><Remove All="TRUE"/><Display Level="None" AcceptEULA="TRUE"/></Configuration>')
+            $isAdminNow = Test-Admin
+            if ($isAdminNow) {
+                $pr = Start-Process -FilePath $setup -ArgumentList "/configure `"$removeXml`"" -PassThru -WindowStyle Hidden
+                if (-not (Wait-WithBar { $pr.HasExited } 900)) {
+                    Write-Host (T 'step_timeout') -ForegroundColor Red
+                    try { Stop-Process -Id $pr.Id -Force -ErrorAction SilentlyContinue } catch {}
+                    Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+                    return
+                }
+                if ($pr.ExitCode -ne 0) {
+                    Write-Host ((T 'office_remove_fail') -f $pr.ExitCode) -ForegroundColor Red
+                    Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+                    return
+                }
+            } else {
+                Write-Host (T 'inst_uac') -ForegroundColor Cyan
+                $rcFile2 = Join-Path $work 'remove_rc.txt'
+                try {
+                    $pr = Start-Process -FilePath 'powershell.exe' -Verb RunAs -WindowStyle Hidden -PassThru `
+                        -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"& '$setup' /configure '$removeXml'; [IO.File]::WriteAllText('$rcFile2', `$LASTEXITCODE)`""
+                    if (-not (Wait-WithBar { (Test-Path $rcFile2) -or $pr.HasExited } 900)) {
+                        Write-Host (T 'step_timeout') -ForegroundColor Red
+                        Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+                        return
+                    }
+                    if (Test-Path $rcFile2) {
+                        $rcTxt = (Get-Content -LiteralPath $rcFile2 -Raw).Trim()
+                        if ($rcTxt -match '^-?\d+$' -and [int]$rcTxt -ne 0) {
+                            Write-Host ((T 'office_remove_fail') -f $rcTxt) -ForegroundColor Red
+                            Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+                            return
+                        }
+                    }
+                } catch {
+                    Write-Host (T 'uac_cancel') -ForegroundColor Yellow
+                    Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+                    return
+                }
+            }
+            Write-Host (T 'office_removed') -ForegroundColor Green
+            $removeOffice = $false  # bir daha girme
+        }
+
+        # Office kurulum/islem zaten calisiyorsa 0-2035 hatasi alinir, engelle.
+        if (Test-OfficeInstallRunning) {
+            Write-Host ''
+            Write-Host (T 'office_install_running') -ForegroundColor Red
+            Write-Host '  Islem iptal edildi.' -ForegroundColor DarkYellow
+            Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+            return
         }
 
         # 2) Now the questions.
@@ -1059,6 +1374,24 @@ function Test-Win10 {
     ($wi.Build -gt 0 -and $wi.Build -lt 22000)
 }
 
+# [6] Office LTSC 2024 kur + etkinlestir — onceki surumu sessizce temizler, kurar, etkinlestirir.
+function Invoke-OfficeReinstallActivate {
+    Write-Host ''
+    Write-Host ('  ' + ('=' * 58)) -ForegroundColor DarkCyan
+    Write-Host '   Office LTSC Professional Plus 2024' -ForegroundColor Cyan
+    Write-Host ('  ' + ('=' * 58)) -ForegroundColor DarkCyan
+    Write-Host ''
+
+    if (Test-OfficeC2R) {
+        if (-not (Confirm (T 'office_installed'))) {
+            Write-Host '  Islem iptal edildi.' -ForegroundColor DarkYellow
+            return
+        }
+    }
+
+    Install-OfficeLTSC
+}
+
 # [7] ACTIVATE EVERYTHING - activation only, no install.
 # Windows: permanent digital license (survives updates). Office: permanent. Plus ESU on Windows 10.
 # Arguments go in a single order-independent pass; the engine handles them in any order.
@@ -1072,13 +1405,13 @@ function Invoke-AllActivate {
     Invoke-MasCheck
 }
 
-# [8] DO EVERYTHING - install Office when missing, then the [7] flow, then offer the full engine menu.
+# [9] DO EVERYTHING - install Office when missing, then the [8] flow, then offer the full engine menu.
 function Invoke-AllInOne {
     Write-Host ''
     Write-Host (T 'all_start') -ForegroundColor Magenta
-    if (-not (Test-OfficeC2R)) {
-        if (Confirm (T 'all_nooffice')) { Write-Host (T 'all_installing') -ForegroundColor DarkGray; Install-OfficeLTSC -SkipActivate }
-    }
+    # Install-OfficeLTSC kendi icinde kurulu mu diye kontrol eder ve
+    # varsa 'Temizlensin mi? (E/h, bos = evet)' sorar.
+    Install-OfficeLTSC -SkipActivate
     Invoke-AllActivate
     if (Confirm (T 'all_masmenu')) { Invoke-MasAio }
     Write-Host (T 'all_done') -ForegroundColor Green
@@ -1153,7 +1486,7 @@ function Invoke-ChangeEdition {
 
     $wi = Get-WinInfo
     $currentTech = $wi.Edition
-    $page = 0; $pageSize = 9
+    $page = 0; $pageSize = 50
     while ($true) {
         Clear-Host
         Write-Banner
@@ -1168,33 +1501,26 @@ function Invoke-ChangeEdition {
             for ($i = $start; $i -lt $end; $i++) {
                 $info = Get-EditionInfo $eds[$i]
                 $isRec = ($eds[$i] -eq $currentTech)
-                $mark  = if ($isRec) { '[x]' } else { '[ ]' }
-                $tag   = if ($isRec) { '  ' + (T 'win_change_rec') } else { '' }
+                $mark  = '[ ]'
+                $tag   = if ($isRec) { '  (mevcut)' } else { '' }
                 Write-Host ('  {0,2}) {1}  {2,-34}{3}{4}' -f ($i + 1), $mark, $info.Name, $info.Desc, $tag) -ForegroundColor Gray
                 $shownAny = $true
             }
             Write-Host ''
         }
-        $hasMore = (-not $launchOnly) -and ($end -lt $eds.Count)
-        if ($hasMore) {
-            Write-Host ('  10) ' + (T 'win_change_next')) -ForegroundColor DarkGray
-        }
-        Write-Host ('  0) ' + (T 'win_change_back')) -ForegroundColor DarkGray
-        Write-Host ''
+        # "0) Geri" kaldırıldı - ESC ile geri dönülür
         Write-Host ('  ' + (T 'win_change_sel')) -ForegroundColor Yellow
         $r = Read-Input ''
         if ($r.Back) { return }
         $sel = $r.Text.Trim()
         if (-not $sel) { continue }
-        if ($sel -eq '0') { return }
-        if ($sel -eq '10' -and $hasMore) { $page++; continue }
         if ($launchOnly) {
             Write-Host ('  Surum listesi gecersiz - motorun kendi penceresi listeler.') -ForegroundColor Red
             Start-Sleep -Milliseconds 700
             continue
         }
         $n = [int]$sel
-        if ($n -lt 1 -or $n -gt $eds.Count -or $n -le $start -or $n -gt $end) {
+        if ($n -lt 1 -or $n -gt $eds.Count) {
             Write-Host ('  Gecersiz secim.') -ForegroundColor Red
             Start-Sleep -Milliseconds 700
             continue
@@ -1254,20 +1580,34 @@ function Invoke-WindowsMenu {
 function Invoke-Action([string]$Key) {
     switch ($Key) {
         '1' { Invoke-WindowsMenu }
-        '2' { Invoke-MasAio '/Ohook' }
-        '3' { Invoke-MasAio '/Z-WindowsESUOffice' }
-        '4' { Invoke-MasAio '/Z-ESU' }
-        '5' { Invoke-MasCheck }
-        '6' { Install-OfficeLTSC }
-        '7' { Invoke-AllActivate }
-        '8' { Invoke-AllInOne }
-        '9' { Show-About }
+        '2' { Invoke-ChangeEdition }
+        '3' { Invoke-MasAio '/Z-ESU' }
+        '4' { Invoke-MasAio '/Ohook' }
+        '5' { Install-OfficeLTSC }
+        '6' { Invoke-OfficeReinstallActivate }
+        '7' { Invoke-MasAio '/Z-WindowsESUOffice' }
+        '8' { Invoke-AllActivate }
+        '9' { Invoke-AllInOne }
+        'a' { Invoke-MasCheck }
+# [F] kaldirildi - calismiyordu
+        'h' { Show-About }
         'l' { Set-UiLang }
     }
 }
 
-# The main screen. Grouped by task so the numbers stay familiar while the layout is readable.
+# The main screen. Grouped by task, numbers stay sequential, colors consistent.
 function Show-MainMenu {
+    # Terminal boyutu: 750x450 px (yaklaşık 100x30 karakter) - sadece interaktif konsolda
+    if (-not [Console]::IsInputRedirected) {
+        try {
+            $w = $host.UI.RawUI.WindowSize
+            $w.Width = 106
+            $w.Height = 37
+            $host.UI.RawUI.WindowSize = $w
+            $host.UI.RawUI.BufferSize = New-Object System.Management.Automation.Host.Size(106, 500)
+        } catch {}
+    }
+    
     Clear-Host
     Write-Banner
     $wi = Get-WinInfo
@@ -1276,18 +1616,20 @@ function Show-MainMenu {
     Write-Host ('  ' + $wi.Summary) -ForegroundColor DarkGray
     Write-Section (T 'sec_win')
     Write-Host (T 'm1') -ForegroundColor White
-    Write-Host (T 'm4') -ForegroundColor DarkGray
+    Write-Host (T 'm2') -ForegroundColor DarkGray
+    Write-Host (T 'm3') -ForegroundColor DarkGray
     Write-Section (T 'sec_off')
-    Write-Host (T 'm2') -ForegroundColor White
+    Write-Host (T 'm4') -ForegroundColor White
+    Write-Host (T 'm5') -ForegroundColor Cyan
     Write-Host (T 'm6') -ForegroundColor Cyan
     Write-Section (T 'sec_all')
-    Write-Host (T 'm3') -ForegroundColor White
-    Write-Host (T 'm7') -ForegroundColor Magenta
+    Write-Host (T 'm7') -ForegroundColor White
     Write-Host (T 'm8') -ForegroundColor Magenta
+    Write-Host (T 'm9') -ForegroundColor Magenta
     Write-Section (T 'sec_info')
-    Write-Host (T 'm5') -ForegroundColor White
-    Write-Host (T 'm9') -ForegroundColor White
+    Write-Host (T 'mA') -ForegroundColor White
     Write-Host ''
+    Write-Host (T 'mH') -ForegroundColor DarkGray
     Write-Host (T 'mx') -ForegroundColor DarkGray
     Write-Host (T 'ml') -ForegroundColor DarkGray
     Write-Host ('  ' + (T 'esc_hint')) -ForegroundColor DarkGray
@@ -1302,14 +1644,15 @@ function Invoke-Main {
         if ($r.Back) { continue }
         $k = $r.Text.Trim().ToLowerInvariant()
         if (-not $k) { continue }
-        if ($k -eq '0') { return }
+        if ($k -eq 'w') { return }
         Invoke-Action $k
-        if ($k -ne '9') {
+        if (@('9','a','h') -notcontains $k) {
             Write-Host ''
             [void](Read-Input (T 'back'))
         }
     }
 }
+
 
 
 if (-not (Test-FullLanguageMode)) { return }
